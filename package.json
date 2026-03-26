@@ -1,7 +1,7 @@
 {
   "name": "telegram-remote-claw",
   "displayName": "GitHub Copilot Mobile – Telegram Remote Claw",
-  "publisher": "proalnet",
+  "publisher": "HunkerDev",
   "version": "0.1.0",
   "description": "Control VS Code and GitHub Copilot remotely via your personal Telegram bot.",
   "categories": [
