@@ -1,4 +1,4 @@
-﻿# Telegram Remote Claw
+﻿# GitHub Copilot Telegram Remote Control (OpenClaw-style)
 
 Turn GitHub Copilot in VS Code into a private Telegram-controlled remote assistant.
 
