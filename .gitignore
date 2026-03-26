@@ -1,0 +1,19 @@
+# Node / npm
+node_modules/
+dist/
+out/
+
+# VSIX packages
+*.vsix
+
+# Environment / secrets — never commit
+.env
+.env.*
+.env.test
+
+# OS artefacts
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/settings.json
