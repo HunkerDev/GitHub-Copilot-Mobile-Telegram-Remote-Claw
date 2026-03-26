@@ -1,0 +1,188 @@
+{
+  "name": "telegram-remote-claw",
+  "displayName": "GitHub Copilot Mobile – Telegram Remote Claw",
+  "publisher": "proalnet",
+  "version": "0.1.0",
+  "description": "Control VS Code and GitHub Copilot remotely via your personal Telegram bot.",
+  "categories": [
+    "Other"
+  ],
+  "icon": "media/claw-icon.png",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "build": "node esbuild.js",
+    "watch:build": "node esbuild.js --watch",
+    "lint": "eslint src --ext ts",
+    "package": "npm run build && vsce package",
+    "test": "mocha --require ts-node/register --ui tdd --timeout 10000 src/test/suite/chatMonitor.test.ts"
+  },
+  "dependencies": {
+    "grammy": "^1.27.0",
+    "marked": "^17.0.5",
+    "screenshot-desktop": "^1.15.0"
+  },
+  "devDependencies": {
+    "@types/marked": "^5.0.2",
+    "@types/mocha": "^10.0.10",
+    "@types/vscode": "^1.90.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "@vscode/test-electron": "^2.4.0",
+    "esbuild": "^0.21.0",
+    "eslint": "^8.57.0",
+    "mocha": "^11.7.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.0"
+  },
+  "contributes": {
+    "chatParticipants": [
+      {
+        "id": "telegram-remote-claw.remoteclaw",
+        "name": "remoteclaw",
+        "fullName": "Remote Claw",
+        "description": "Ask GitHub Copilot questions and control VS Code via Telegram",
+        "isSticky": false
+      }
+    ],
+    "configuration": {
+      "title": "Telegram Copilot",
+      "properties": {
+        "telegramCopilot.instanceName": {
+          "type": "string",
+          "default": "VS Code",
+          "description": "Friendly name for this VS Code instance, shown in Telegram notifications."
+        },
+        "telegramCopilot.enableTerminal": {
+          "type": "boolean",
+          "default": true,
+          "description": "Allow the /run command to execute terminal commands remotely."
+        },
+        "telegramCopilot.enableScreenshots": {
+          "type": "boolean",
+          "default": true,
+          "description": "Allow the /screenshot command to capture and send desktop images."
+        },
+        "telegramCopilot.confirmDestructive": {
+          "type": "boolean",
+          "default": true,
+          "description": "Require inline keyboard confirmation before executing destructive terminal commands."
+        },
+        "telegramCopilot.commandAllowlist": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "If non-empty, only these commands are permitted via /run. Takes precedence over commandDenylist."
+        },
+        "telegramCopilot.commandDenylist": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "rm -rf",
+            "del /f",
+            "format",
+            "DROP TABLE",
+            ":(){:|:&};:"
+          ],
+          "description": "Commands that trigger a confirmation prompt or are blocked when issued via /run."
+        },
+        "telegramCopilot.notifyOnBuildComplete": {
+          "type": "boolean",
+          "default": true,
+          "description": "Send a Telegram message when a VS Code build task completes."
+        },
+        "telegramCopilot.notifyOnTestComplete": {
+          "type": "boolean",
+          "default": true,
+          "description": "Send a Telegram message when a test run completes."
+        },
+        "telegramCopilot.notifyOnLongTask": {
+          "type": "boolean",
+          "default": true,
+          "description": "Send a Telegram message when a running task exceeds longTaskThresholdSeconds."
+        },
+        "telegramCopilot.longTaskThresholdSeconds": {
+          "type": "number",
+          "default": 30,
+          "minimum": 5,
+          "description": "Seconds before a running task is considered long and a notification is sent."
+        },
+        "telegramCopilot.terminalOutputMaxLines": {
+          "type": "number",
+          "default": 100,
+          "minimum": 10,
+          "maximum": 500,
+          "description": "Maximum terminal output lines before the response is truncated."
+        },
+        "telegramCopilot.conversationHistoryCount": {
+          "type": "number",
+          "default": 20,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Number of Copilot conversation exchanges to persist across VS Code restarts."
+        },
+        "telegramCopilot.messageFormat": {
+          "type": "string",
+          "enum": [
+            "markdown",
+            "html"
+          ],
+          "default": "markdown",
+          "description": "Telegram message parse mode. Use 'markdown' or 'html'."
+        },
+        "telegramCopilot.autoScreenshotAfterAgent": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically send a screenshot to Telegram after every Copilot response."
+        },
+        "telegramCopilot.rateLimitPerMinute": {
+          "type": "number",
+          "default": 20,
+          "minimum": 5,
+          "maximum": 60,
+          "description": "Maximum commands per minute accepted from the owner before rate limiting kicks in."
+        },
+        "telegramCopilot.enablePIN": {
+          "type": "boolean",
+          "default": false,
+          "description": "Require the owner to send /auth <pin> once per VS Code session before commands are accepted."
+        },
+        "telegramCopilot.silentMode": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, /ask answers without opening the VS Code Chat panel (calls the LM directly). Overridden by nativeChatCapture."
+        },
+        "telegramCopilot.nativeChatCapture": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true, /ask opens the native VS Code Chat panel with the bare query (no @remoteclaw participant) and captures the response via clipboard automation. Takes precedence over silentMode."
+        },
+        "telegramCopilot.nativeChatCaptureTimeoutSeconds": {
+          "type": "number",
+          "default": 90,
+          "minimum": 15,
+          "maximum": 300,
+          "description": "Maximum seconds to wait for a native chat response when nativeChatCapture is enabled."
+        },
+        "telegramCopilot.nativeChatMonitorInactivityMinutes": {
+          "type": "number",
+          "default": 10,
+          "minimum": 1,
+          "maximum": 60,
+          "description": "Minutes of no new Telegram sends before the chat monitor stops automatically."
+        }
+      }
+    }
+  }
+}
