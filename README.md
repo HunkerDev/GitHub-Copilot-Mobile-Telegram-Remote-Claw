@@ -39,6 +39,27 @@ The roadmap also already signals where the product is going next, with planned c
 
 That matters because experienced users do not just buy the idea. They inspect the interface. A visible command vocabulary makes the project easier to trust, easier to adopt, and easier to extend.
 
+## How To Install
+
+###  Install the VSIX directly
+
+1. Download `telegram-remote-claw-0.1.0.vsix` from this release.  [Download now!](https://github.com/HunkerDev/GitHub-Copilot-Mobile-Telegram-Remote-Claw/releases/download/PreRelease/telegram-remote-claw-0.1.0.vsix)
+2. Open VS Code → Extensions panel → `...` menu → **Install from VSIX...**
+3. Select the downloaded file
+4. Reload VS Code when prompted
+---
+
+## 🚀 Getting Started
+
+On your first use, a simple setup wizard will guide you step by step:
+
+1. Open Telegram and search for **`@BotFather`** — this is the official Telegram tool used to create your own bot.  
+2. Follow the instructions to create your bot and copy the token you receive.  
+3. Paste your bot token directly into the setup wizard in VS Code and validate it.  
+4. Send any message to your bot in Telegram — this allows the extension to recognize you as the owner.  
+5. Confirm the connection, and your bot will be ready to use 🎉 
+Secrets are stored securely in VS Code SecretStorage, never in plain files on disk.
+
 ## For Developers Evaluating The Project
 
 Telegram Remote Claw is a strong fit if you want:
