@@ -7,6 +7,7 @@ import { TelegramBot } from './bot/telegramBot';
 import { createAuthMiddleware, createRateLimiterMiddleware } from './bot/middleware';
 import { createCopilotBridge, CopilotBridge } from './bridge/copilotBridge';
 import { registerCommands } from './bot/commands';
+import { TerminalBridge } from './bridge/terminalBridge';
 
 // Module-level reference to support graceful shutdown in deactivate()
 let telegramBot: TelegramBot | undefined;
@@ -114,7 +115,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     });
 
     // 10b. Wire Telegram command handlers (?agent, ?help, etc.)
-    const chatMonitor = registerCommands(telegramBot.getBot(), copilotBridge, config, secretsManager, context);
+    const terminalBridge = new TerminalBridge(config);
+    const chatMonitor = registerCommands(telegramBot.getBot(), copilotBridge, config, secretsManager, context, terminalBridge);
 
     // 11. NotificationWatcher — not yet implemented (T5.x), skip for now
 

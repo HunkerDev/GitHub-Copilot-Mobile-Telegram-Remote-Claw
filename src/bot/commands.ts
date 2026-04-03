@@ -10,6 +10,7 @@ import {
 } from '../utils/formatter';
 import { ChatMonitor } from '../bridge/chatMonitor';
 import { captureScreenshot } from '../utils/screenshot';
+import { TerminalBridge } from '../bridge/terminalBridge';
 
 // ── Entity type mapping: our names → Telegram Bot HTTP API names ──────────────
 const TELEGRAM_ENTITY_TYPE: Record<TelegramEntity['_'], string> = {
@@ -94,6 +95,7 @@ export function registerCommands(
     config: TelegramCopilotConfig,
     secretsManager: SecretsManager,
     context: vscode.ExtensionContext,
+    terminalBridge: TerminalBridge,
 ): ChatMonitor {
     // ── Persistent state (survives VS Code restarts via globalState) ──────────
     // agentModeEnabled: when true, all plain-text messages are forwarded to Copilot.
@@ -325,6 +327,111 @@ export function registerCommands(
         }
     }
 
+    // ── T3.2 — Terminal command handlers ──────────────────────────────────────
+
+    async function handleRun(ctx: Context, args: string): Promise<void> {
+        if (!config.enableTerminal) {
+            await ctx.reply('⛔ Terminal commands are disabled in settings.');
+            return;
+        }
+        const cmd = args.trim();
+        if (!cmd) {
+            await ctx.reply('Usage: ?run <command>');
+            return;
+        }
+
+        const verdict = terminalBridge.classifyCommand(cmd);
+
+        if (verdict === 'deny') {
+            await ctx.reply(`🚫 Command blocked by security policy: \`${cmd}\``);
+            return;
+        }
+
+        if (verdict === 'confirm') {
+            const keyboard = new InlineKeyboard()
+                .text('✅ Yes, run it', `run_confirm:${cmd}`)
+                .text('❌ Cancel', 'run_cancel');
+            await ctx.reply(`⚠️ Potentially destructive command:\n\`${cmd}\`\n\nRun it?`, { reply_markup: keyboard });
+            return;
+        }
+
+        await ctx.reply(`⚙️ Running: \`${cmd}\`\`\`\``);
+        const output = await terminalBridge.runCommand(cmd);
+        await ctx.reply(`\`\`\`\n${output}\n\`\`\``, { parse_mode: 'Markdown' });
+    }
+
+    async function handleStop(ctx: Context): Promise<void> {
+        terminalBridge.stop();
+        await ctx.reply('⏹ Process stopped.');
+    }
+
+    async function handleFile(ctx: Context, args: string): Promise<void> {
+        const filePath = args.trim();
+        if (!filePath) {
+            await ctx.reply('Usage: ?file <path>');
+            return;
+        }
+        try {
+            const content = await terminalBridge.readFile(filePath);
+            await ctx.reply(`\`\`\`\n${content}\n\`\`\``, { parse_mode: 'Markdown' });
+        } catch (err) {
+            await ctx.reply(`❌ ${err instanceof Error ? err.message : String(err)}`);
+        }
+    }
+
+    async function handleDiff(ctx: Context): Promise<void> {
+        const diff = await terminalBridge.getGitDiff();
+        await ctx.reply(`\`\`\`diff\n${diff}\n\`\`\``, { parse_mode: 'Markdown' });
+    }
+
+    async function handleGit(ctx: Context, args: string): Promise<void> {
+        if (!args.trim()) {
+            await ctx.reply('Usage: ?git <args>  e.g. ?git status');
+            return;
+        }
+        const output = await terminalBridge.runGit(args);
+        await ctx.reply(`\`\`\`\n${output}\n\`\`\``, { parse_mode: 'Markdown' });
+    }
+
+    async function handleStatus(ctx: Context): Promise<void> {
+        const status = await terminalBridge.getStatus();
+        await ctx.reply(status);
+    }
+
+    async function handleErrors(ctx: Context): Promise<void> {
+        const errors = await terminalBridge.getErrors();
+        await ctx.reply(errors);
+    }
+
+    async function handleOpen(ctx: Context, args: string): Promise<void> {
+        const filePath = args.trim();
+        if (!filePath) {
+            await ctx.reply('Usage: ?open <path>');
+            return;
+        }
+        try {
+            await terminalBridge.openFile(filePath);
+            await ctx.reply(`📂 Opened: ${filePath}`);
+        } catch (err) {
+            await ctx.reply(`❌ ${err instanceof Error ? err.message : String(err)}`);
+        }
+    }
+
+    // ── T3.2.10 — Destructive command confirmation callbacks ──────────────────
+
+    bot.callbackQuery(/^run_confirm:(.+)$/, async (ctx) => {
+        await ctx.answerCallbackQuery();
+        const cmd = ctx.match[1];
+        await ctx.reply(`⚙️ Running: \`${cmd}\``);
+        const output = await terminalBridge.runCommand(cmd);
+        await ctx.reply(`\`\`\`\n${output}\n\`\`\``, { parse_mode: 'Markdown' });
+    });
+
+    bot.callbackQuery('run_cancel', async (ctx) => {
+        await ctx.answerCallbackQuery({ text: 'Cancelled.' });
+        await ctx.reply('❌ Command cancelled.');
+    });
+
     // ── T2.6 Callback: 📸 Screenshot ──────────────────────────────────────────
     bot.callbackQuery('screenshot', async (ctx) => {
         const senderId = ctx.from?.id?.toString();
@@ -373,15 +480,14 @@ export function registerCommands(
         'agent_off': (ctx)       => handleAgentOff(ctx),
         'help':      (ctx)       => handleHelp(ctx),
         'screenshot':(ctx)       => handleScreenshot(ctx, config),
-        // Stubs — full implementations in later tasks:
-        'run':    async (ctx) => { await ctx.reply('⚙️ /run not yet implemented (T3.x).'); },
-        'stop':   async (ctx) => { await ctx.reply('⚙️ /stop not yet implemented (T3.x).'); },
-        'file':   async (ctx, args) => { await ctx.reply(`📄 /file not yet implemented (T3.x). Arg: ${args}`); },
-        'diff':   async (ctx) => { await ctx.reply('🔀 /diff not yet implemented (T3.x).'); },
-        'git':    async (ctx, args) => { await ctx.reply(`🪢 /git not yet implemented (T3.x). Arg: ${args}`); },
-        'status': async (ctx) => { await ctx.reply('📊 /status not yet implemented (T3.x).'); },
-        'errors': async (ctx) => { await ctx.reply('🐛 /errors not yet implemented (T3.x).'); },
-        'open':   async (ctx, args) => { await ctx.reply(`📂 /open not yet implemented (T3.x). Arg: ${args}`); },
+        'run':    (ctx, args) => handleRun(ctx, args),
+        'stop':   (ctx)       => handleStop(ctx),
+        'file':   (ctx, args) => handleFile(ctx, args),
+        'diff':   (ctx)       => handleDiff(ctx),
+        'git':    (ctx, args) => handleGit(ctx, args),
+        'status': (ctx)       => handleStatus(ctx),
+        'errors': (ctx)       => handleErrors(ctx),
+        'open':   (ctx, args) => handleOpen(ctx, args),
         'pin':    async (ctx) => { await ctx.reply('🔐 /pin not yet implemented.'); },
     };
 
