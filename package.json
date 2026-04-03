@@ -22,7 +22,7 @@
     "watch:build": "node esbuild.js --watch",
     "lint": "eslint src --ext ts",
     "package": "npm run build && vsce package",
-    "test": "mocha --require ts-node/register --ui tdd --timeout 10000 src/test/suite/chatMonitor.test.ts src/test/suite/screenshot.test.ts"
+    "test": "mocha --require ts-node/register --ui tdd --timeout 10000 src/test/suite/chatMonitor.test.ts src/test/suite/screenshot.test.ts src/test/suite/terminalBridge.test.ts"
   },
   "dependencies": {
     "grammy": "^1.27.0",
