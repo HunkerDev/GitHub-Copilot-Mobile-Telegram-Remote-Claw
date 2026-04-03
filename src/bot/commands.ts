@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { Bot, Context, InlineKeyboard } from 'grammy';
+import { Bot, Context, InlineKeyboard, InputFile } from 'grammy';
 import { CopilotBridge } from '../bridge/copilotBridge';
 import { SecretsManager, TelegramCopilotConfig } from '../config/settings';
 import {
@@ -9,6 +9,7 @@ import {
     type TelegramEntity,
 } from '../utils/formatter';
 import { ChatMonitor } from '../bridge/chatMonitor';
+import { captureScreenshot } from '../utils/screenshot';
 
 // ── Entity type mapping: our names → Telegram Bot HTTP API names ──────────────
 const TELEGRAM_ENTITY_TYPE: Record<TelegramEntity['_'], string> = {
@@ -66,9 +67,16 @@ async function ensureAutoApprove(ctx: Context): Promise<boolean> {
     return false;
 }
 
-// ── T2.6 — Screenshot stub (full implementation in T4.1) ──────────────────────
-async function handleScreenshot(ctx: Context): Promise<void> {
-    await ctx.reply('📸 Screenshot feature coming soon (T4.1).');
+// ── T4.2 — Screenshot handler ─────────────────────────────────────────────────
+async function handleScreenshot(ctx: Context, cfg: TelegramCopilotConfig): Promise<void> {
+    try {
+        const buffer = await captureScreenshot();
+        const caption = `📸 ${cfg.instanceName} — ${new Date().toLocaleString()}`;
+        await ctx.replyWithPhoto(new InputFile(buffer, 'screenshot.png'), { caption });
+    } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        await ctx.reply(`❌ Screenshot failed: ${errMsg}`);
+    }
 }
 
 /**
@@ -157,9 +165,21 @@ export function registerCommands(
                 }
             };
 
+            // Wrap sendFn to auto-screenshot after each Copilot response if enabled
+            const finalSendFn = config.autoScreenshotAfterAgent
+                ? async (text: string): Promise<void> => {
+                    await sendFn(text);
+                    try {
+                        const buffer = await captureScreenshot();
+                        const caption = `📸 ${config.instanceName} — ${new Date().toLocaleString()}`;
+                        await ctx.replyWithPhoto(new InputFile(buffer, 'screenshot.png'), { caption });
+                    } catch { /* never interrupt the main flow */ }
+                }
+                : sendFn;
+
             // Cancel any previous monitor and start a new one (fire-and-forget)
             monitor.cancel();
-            void monitor.start(question, sendFn, extractLastAssistantResponse);
+            void monitor.start(question, finalSendFn, extractLastAssistantResponse);
             return;
         }
 
@@ -199,6 +219,14 @@ export function registerCommands(
             } catch {
                 await ctx.reply(chunk.text);
             }
+        }
+
+        if (config.autoScreenshotAfterAgent) {
+            try {
+                const buffer = await captureScreenshot();
+                const caption = `📸 ${config.instanceName} — ${new Date().toLocaleString()}`;
+                await ctx.replyWithPhoto(new InputFile(buffer, 'screenshot.png'), { caption });
+            } catch { /* never interrupt the main flow */ }
         }
     }
 
@@ -306,7 +334,7 @@ export function registerCommands(
             return;
         }
         await ctx.answerCallbackQuery();
-        await handleScreenshot(ctx);
+        await handleScreenshot(ctx, config);
     });
 
     // ── Auto-approve callbacks ─────────────────────────────────────────────────
@@ -344,7 +372,7 @@ export function registerCommands(
         'agent_on':  (ctx)       => handleAgentOn(ctx),
         'agent_off': (ctx)       => handleAgentOff(ctx),
         'help':      (ctx)       => handleHelp(ctx),
-        'screenshot':(ctx)       => handleScreenshot(ctx),
+        'screenshot':(ctx)       => handleScreenshot(ctx, config),
         // Stubs — full implementations in later tasks:
         'run':    async (ctx) => { await ctx.reply('⚙️ /run not yet implemented (T3.x).'); },
         'stop':   async (ctx) => { await ctx.reply('⚙️ /stop not yet implemented (T3.x).'); },
