@@ -1,5 +1,24 @@
 import { Context, Middleware, NextFunction } from 'grammy';
 import { SecretsManager, TelegramCopilotConfig } from '../config/settings';
+// ---------- Pause Middleware ----------
+
+/**
+ * Silently drops all incoming Telegram updates when the bot is paused.
+ * Accepts a getter so the middleware can be composed before the TelegramBot
+ * instance is created (the getter is evaluated at request time, not at
+ * composition time).
+ *
+ * Must be the first middleware in the chain so it short-circuits before
+ * auth and rate-limiter run.
+ */
+export function createPauseMiddleware(isPaused: () => boolean): Middleware<Context> {
+    return async (_ctx: Context, next: NextFunction): Promise<void> => {
+        if (isPaused()) {
+            return; // Drop silently while paused
+        }
+        await next();
+    };
+}
 
 // ---------- T1.6 — Auth Middleware ----------
 

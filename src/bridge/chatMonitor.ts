@@ -46,6 +46,9 @@ export class ChatMonitor {
     /** Flag that signals the polling loop to exit on the next iteration. */
     private isCancelled = false;
 
+    /** Flag that pauses clipboard polling without cancelling the loop. */
+    private isPaused = false;
+
     /** The last content successfully sent to Telegram. Used for diffing. */
     private lastSentContent = '';
 
@@ -119,6 +122,9 @@ export class ChatMonitor {
             await this._sleep(POLL_MS);
             if (this.isCancelled) { break; }
 
+            // If paused, skip all processing and wait for resume.
+            if (this.isPaused) { continue; }
+
             // ── 2a. Copy the full Chat transcript to the clipboard ───────────
             // VS Code's `chat.copyAll` writes the entire conversation (all
             // user + assistant turns) to the system clipboard as plain text.
@@ -188,6 +194,31 @@ export class ChatMonitor {
             this.isCancelled = true;
             this._clearInactivityTimer();
             console.log('[RemoteClaw] Monitor: cancelled');
+        }
+    }
+
+    /**
+     * Pauses clipboard polling. The loop keeps running but skips all copyAll
+     * and processing logic until `resume()` is called. Clears the inactivity
+     * timer so it does not fire while the extension is paused.
+     */
+    pause(): void {
+        if (!this.isPaused) {
+            this.isPaused = true;
+            this._clearInactivityTimer();
+            console.log('[RemoteClaw] Monitor: paused');
+        }
+    }
+
+    /**
+     * Resumes clipboard polling after a `pause()`. Restores the inactivity
+     * timer so the auto-cancel deadline picks up again.
+     */
+    resume(): void {
+        if (this.isPaused) {
+            this.isPaused = false;
+            this._resetInactivityTimer();
+            console.log('[RemoteClaw] Monitor: resumed');
         }
     }
 

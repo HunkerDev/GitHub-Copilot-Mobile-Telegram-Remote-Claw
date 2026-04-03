@@ -4,7 +4,7 @@ import { SecretsManager, getConfig } from './config/settings';
 import { RemoteClawStatusBar } from './ui/statusBar';
 import { showSetupWizard } from './ui/setupWizard';
 import { TelegramBot } from './bot/telegramBot';
-import { createAuthMiddleware, createRateLimiterMiddleware } from './bot/middleware';
+import { createAuthMiddleware, createRateLimiterMiddleware, createPauseMiddleware } from './bot/middleware';
 import { createCopilotBridge, CopilotBridge } from './bridge/copilotBridge';
 import { registerCommands } from './bot/commands';
 import { TerminalBridge } from './bridge/terminalBridge';
@@ -40,9 +40,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
     }
 
-    // 5. Build composed middleware: auth → rate limiter
+    // 5. Build composed middleware: pause → auth → rate limiter
+    // createPauseMiddleware uses a getter so it can be composed before the
+    // TelegramBot instance exists — the getter is evaluated at request time.
     const config = getConfig();
     const composer = new Composer<Context>();
+    composer.use(createPauseMiddleware(() => telegramBot?.paused ?? false));
     composer.use(createAuthMiddleware(secretsManager));
     composer.use(createRateLimiterMiddleware(config));
 
@@ -87,10 +90,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     });
 
     const openStatusMenuCmd = vscode.commands.registerCommand('remclaw.openStatusMenu', () => {
+        const isPaused = telegramBot?.paused ?? false;
+        const pauseItem = isPaused
+            ? { label: '$(debug-start) Resume',  id: 'resume' }
+            : { label: '$(debug-pause) Pause',   id: 'pause' };
+
         void vscode.window.showQuickPick(
             [
                 { label: '$(debug-start) Start bot',    id: 'start' },
                 { label: '$(debug-stop) Stop bot',      id: 'stop' },
+                pauseItem,
                 { label: '$(refresh) Reconnect',        id: 'reconnect' },
                 { label: '$(person) Change User',       id: 'changeUser' },
                 { label: '$(settings-gear) Settings',   id: 'settings' },
@@ -118,6 +127,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const terminalBridge = new TerminalBridge(config);
     const chatMonitor = registerCommands(telegramBot.getBot(), copilotBridge, config, secretsManager, context, terminalBridge);
 
+    const pauseCmd = vscode.commands.registerCommand('remclaw.pause', () => {
+        telegramBot?.pause();
+        chatMonitor.pause();
+        statusBar.setPaused();
+    });
+
+    const resumeCmd = vscode.commands.registerCommand('remclaw.resume', () => {
+        telegramBot?.resume();
+        chatMonitor.resume();
+        statusBar.setConnected();
+    });
+
     // 11. NotificationWatcher — not yet implemented (T5.x), skip for now
 
     // 12. Start the bot
@@ -128,6 +149,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     context.subscriptions.push(
         startCmd,
         stopCmd,
+        pauseCmd,
+        resumeCmd,
         resetCmd,
         reconnectCmd,
         changeUserCmd,
