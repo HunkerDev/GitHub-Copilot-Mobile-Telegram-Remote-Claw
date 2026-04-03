@@ -33,6 +33,11 @@ export class RemoteClawStatusBar {
         this.item.tooltip = 'Telegram Remote Claw — Reconnecting…';
     }
 
+    setPaused(): void {
+        this.item.text = '🦞 Remote Claw: Paused';
+        this.item.tooltip = 'Telegram Remote Claw — Paused. Click to resume.';
+    }
+
     dispose(): void {
         this.item.dispose();
     }

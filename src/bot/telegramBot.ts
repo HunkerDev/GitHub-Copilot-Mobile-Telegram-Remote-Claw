@@ -15,6 +15,7 @@ export class TelegramBot {
     private running = false;
     private statusBar: RemoteClawStatusBar | undefined;
     private backoffDelay = BACKOFF_INITIAL_MS;
+    paused = false;
 
     constructor(token: string, middleware: Middleware<Context>) {
         this.bot = new Bot<Context>(token);
@@ -95,6 +96,14 @@ export class TelegramBot {
         this.running = false;
         await this.bot.stop();
         this.disconnectedCallbacks.forEach(cb => cb());
+    }
+
+    pause(): void {
+        this.paused = true;
+    }
+
+    resume(): void {
+        this.paused = false;
     }
 
     onConnected(cb: VoidCallback): void {
